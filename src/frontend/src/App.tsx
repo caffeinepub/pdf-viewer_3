@@ -1,14 +1,14 @@
-import {
-  createRouter,
-  createRoute,
-  createRootRoute,
-  RouterProvider,
-  Outlet,
-  Link,
-} from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
-import ViewerPage from "./pages/ViewerPage";
+import {
+  Link,
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
 import AdminPage from "./pages/AdminPage";
+import ViewerPage from "./pages/ViewerPage";
 
 // Root route — no layout chrome
 const rootRoute = createRootRoute({

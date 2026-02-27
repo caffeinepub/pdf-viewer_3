@@ -11,7 +11,7 @@ import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
 export type ExternalBlob = Uint8Array;
-export interface Image {
+export interface Pdf {
   'blob' : ExternalBlob,
   'filename' : string,
   'uploadedAt' : Time,
@@ -44,9 +44,9 @@ export interface _SERVICE {
     _CaffeineStorageRefillResult
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  'clearImages' : ActorMethod<[], undefined>,
-  'getImages' : ActorMethod<[], Array<Image>>,
-  'setImages' : ActorMethod<[Array<ExternalBlob>, Array<string>], undefined>,
+  'clearPdf' : ActorMethod<[], undefined>,
+  'getPdf' : ActorMethod<[], [] | [Pdf]>,
+  'setPdf' : ActorMethod<[ExternalBlob, string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

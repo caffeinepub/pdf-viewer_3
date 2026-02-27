@@ -1,29 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import type { Pdf } from "../backend";
 import { useActor } from "../hooks/useActor";
-import type { Image } from "../backend";
-
-// ────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────
-
-function getMimeType(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  switch (ext) {
-    case "png":
-      return "image/png";
-    case "gif":
-      return "image/gif";
-    case "webp":
-      return "image/webp";
-    case "jpg":
-    case "jpeg":
-    default:
-      return "image/jpeg";
-  }
-}
 
 // ────────────────────────────────────────────────────────────
 // ViewerPage
@@ -31,82 +10,55 @@ function getMimeType(filename: string): string {
 
 export default function ViewerPage() {
   const { actor, isFetching: actorFetching } = useActor();
-  const [objectUrls, setObjectUrls] = useState<(string | null)[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loadingBytes, setLoadingBytes] = useState(false);
 
-  const { data: images, isLoading } = useQuery<Image[]>({
-    queryKey: ["images"],
+  const { data: pdf, isLoading } = useQuery<Pdf | null>({
+    queryKey: ["pdf"],
     queryFn: async () => {
-      if (!actor) return [];
-      return actor.getImages();
+      if (!actor) return null;
+      return actor.getPdf();
     },
     enabled: !!actor && !actorFetching,
   });
 
-  // Fetch all image bytes and create object URLs
+  // Fetch PDF bytes and create object URL
   useEffect(() => {
-    if (!images || images.length === 0) {
-      setObjectUrls([]);
+    if (!pdf) {
+      setObjectUrl(null);
       return;
     }
 
     let cancelled = false;
-    const urls: string[] = [];
+    let createdUrl: string | null = null;
 
-    async function loadImages() {
+    async function loadPdf() {
       setLoadingBytes(true);
       try {
-        const results = await Promise.all(
-          images!.map(async (img) => {
-            const bytes = await img.blob.getBytes();
-            const mime = getMimeType(img.filename);
-            const blob = new Blob([bytes], { type: mime });
-            return URL.createObjectURL(blob);
-          }),
-        );
+        const bytes = await pdf!.blob.getBytes();
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
         if (!cancelled) {
-          urls.push(...results);
-          setObjectUrls(results);
-          setCurrentIndex(0);
+          createdUrl = url;
+          setObjectUrl(url);
+        } else {
+          URL.revokeObjectURL(url);
         }
       } catch (err) {
-        console.error("Failed to load image bytes:", err);
-        if (!cancelled) setObjectUrls([]);
+        console.error("Failed to load PDF bytes:", err);
+        if (!cancelled) setObjectUrl(null);
       } finally {
         if (!cancelled) setLoadingBytes(false);
       }
     }
 
-    loadImages();
+    loadPdf();
 
     return () => {
       cancelled = true;
-      // Revoke any URLs we already created
-      for (const u of urls) URL.revokeObjectURL(u);
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [images]);
-
-  // Keyboard navigation
-  const goNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % (objectUrls.length || 1));
-  }, [objectUrls.length]);
-
-  const goPrev = useCallback(() => {
-    setCurrentIndex((prev) =>
-      prev === 0 ? (objectUrls.length || 1) - 1 : prev - 1,
-    );
-  }, [objectUrls.length]);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (objectUrls.length <= 1) return;
-      if (e.key === "ArrowRight") goNext();
-      if (e.key === "ArrowLeft") goPrev();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [goNext, goPrev, objectUrls.length]);
+  }, [pdf]);
 
   // ── States ──────────────────────────────────────────────
 
@@ -118,10 +70,10 @@ export default function ViewerPage() {
     );
   }
 
-  if (!images || images.length === 0) {
+  if (!pdf) {
     return (
       <div className="viewer-empty">
-        <p className="viewer-empty__message">No photos yet.</p>
+        <p className="viewer-empty__message">No PDF uploaded yet.</p>
         <Link to="/admin" className="viewer-empty__link">
           Admin →
         </Link>
@@ -137,47 +89,16 @@ export default function ViewerPage() {
     );
   }
 
-  const currentUrl = objectUrls[currentIndex] ?? null;
-  const total = objectUrls.length;
-  const showNav = total > 1;
-
   return (
-    <div className="viewer-slideshow">
-      {/* Full-screen image */}
-      {currentUrl && (
-        <img
-          key={currentUrl}
-          src={currentUrl}
-          alt={images[currentIndex]?.filename ?? "Photo"}
-          className="viewer-slideshow__image"
+    <div className="viewer-pdf">
+      {objectUrl && (
+        <embed
+          src={objectUrl}
+          type="application/pdf"
+          width="100%"
+          height="100%"
+          title={pdf.filename}
         />
-      )}
-
-      {/* Prev / Next arrows */}
-      {showNav && (
-        <>
-          <button
-            type="button"
-            onClick={goPrev}
-            className="viewer-slideshow__arrow viewer-slideshow__arrow--left"
-            aria-label="Previous photo"
-          >
-            <ChevronLeft size={32} />
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            className="viewer-slideshow__arrow viewer-slideshow__arrow--right"
-            aria-label="Next photo"
-          >
-            <ChevronRight size={32} />
-          </button>
-
-          {/* Counter */}
-          <div className="viewer-slideshow__counter">
-            {currentIndex + 1} / {total}
-          </div>
-        </>
       )}
     </div>
   );

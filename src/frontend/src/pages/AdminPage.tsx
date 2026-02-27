@@ -1,21 +1,21 @@
-import { useState, useRef, useCallback } from "react";
-import { Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
-import { useActor } from "../hooks/useActor";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ExternalBlob } from "../backend";
-import type { Image } from "../backend";
+import type { Pdf } from "../backend";
+import { useActor } from "../hooks/useActor";
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -68,7 +68,9 @@ function PasswordGate({ onSuccess }: PasswordGateProps) {
       <Card className="admin-gate__card">
         <CardHeader>
           <CardTitle>Admin Access</CardTitle>
-          <CardDescription>Enter the admin password to continue.</CardDescription>
+          <CardDescription>
+            Enter the admin password to continue.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="admin-gate__form">
@@ -86,7 +88,9 @@ function PasswordGate({ onSuccess }: PasswordGateProps) {
                 autoFocus
               />
               {error && (
-                <p className="admin-gate__error">Incorrect password. Try again.</p>
+                <p className="admin-gate__error">
+                  Incorrect password. Try again.
+                </p>
               )}
             </div>
             <Button type="submit" className="admin-gate__submit">
@@ -111,26 +115,26 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
   const { actor, isFetching: actorFetching } = useActor();
   const queryClient = useQueryClient();
 
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: images, isLoading } = useQuery<Image[]>({
-    queryKey: ["images"],
+  const { data: pdf, isLoading } = useQuery<Pdf | null>({
+    queryKey: ["pdf"],
     queryFn: async () => {
-      if (!actor) return [];
-      return actor.getImages();
+      if (!actor) return null;
+      return actor.getPdf();
     },
     enabled: !!actor && !actorFetching,
   });
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files ?? []);
-      setSelectedFiles(files);
+      const file = e.target.files?.[0] ?? null;
+      setSelectedFile(file);
       setUploadSuccess(false);
       setUploadProgress(0);
     },
@@ -138,47 +142,28 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
   );
 
   const handleUpload = async () => {
-    if (!actor || selectedFiles.length === 0) return;
+    if (!actor || !selectedFile) return;
 
     setIsUploading(true);
     setUploadProgress(0);
     setUploadSuccess(false);
 
     try {
-      const total = selectedFiles.length;
-      const blobs: ExternalBlob[] = [];
-      const filenames: string[] = [];
+      const bytes = await readFileAsBytes(selectedFile);
 
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
-        const bytes = await readFileAsBytes(file);
+      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
+        (pct: number) => {
+          setUploadProgress(Math.round(pct));
+        },
+      );
 
-        // Track per-file progress scaled across all files
-        const fileStartPct = (i / total) * 100;
-        const fileEndPct = ((i + 1) / total) * 100;
-
-        const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
-          (pct: number) => {
-            const scaled = fileStartPct + (pct / 100) * (fileEndPct - fileStartPct);
-            setUploadProgress(Math.round(scaled));
-          },
-        );
-
-        blobs.push(blob);
-        filenames.push(file.name);
-      }
-
-      await actor.setImages(blobs, filenames);
+      await actor.setPdf(blob, selectedFile.name);
       setUploadProgress(100);
       setUploadSuccess(true);
-      setSelectedFiles([]);
+      setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await queryClient.invalidateQueries({ queryKey: ["images"] });
-      toast.success(
-        total === 1
-          ? "Photo uploaded successfully."
-          : `${total} photos uploaded successfully.`,
-      );
+      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
+      toast.success("PDF uploaded successfully.");
     } catch (err) {
       console.error("Upload error:", err);
       const message = err instanceof Error ? err.message : String(err);
@@ -192,24 +177,24 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
     if (!actor) return;
     setIsClearing(true);
     try {
-      await actor.clearImages();
-      await queryClient.invalidateQueries({ queryKey: ["images"] });
-      toast.success("Photos cleared.");
+      await actor.clearPdf();
+      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
+      toast.success("PDF cleared.");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to clear photos.");
+      toast.error("Failed to clear PDF.");
     } finally {
       setIsClearing(false);
     }
   };
 
-  const photoCount = images?.length ?? 0;
+  const hasPdf = !!pdf;
 
   return (
     <div className="admin-panel">
       <Card className="admin-panel__card">
         <CardHeader className="admin-panel__header">
-          <CardTitle>Photo Admin</CardTitle>
+          <CardTitle>PDF Admin</CardTitle>
           <Button
             variant="ghost"
             size="sm"
@@ -221,30 +206,19 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
         </CardHeader>
 
         <CardContent className="admin-panel__content">
-          {/* Current photos info */}
+          {/* Current PDF info */}
           {isLoading || actorFetching ? (
             <div className="admin-panel__current">
-              <p className="admin-panel__loading-text">Loading photos…</p>
+              <p className="admin-panel__loading-text">Loading PDF info…</p>
             </div>
-          ) : photoCount > 0 ? (
+          ) : hasPdf ? (
             <div className="admin-panel__current">
-              <p className="admin-panel__label">Current Photos</p>
-              <p className="admin-panel__filename">
-                {photoCount} {photoCount === 1 ? "photo" : "photos"} uploaded
-              </p>
-              <ul className="admin-panel__filelist">
-                {images!.map((img) => (
-                  <li key={img.filename + String(img.uploadedAt)} className="admin-panel__fileitem">
-                    <span className="admin-panel__fileitem-name">{img.filename}</span>
-                    <span className="admin-panel__fileitem-date">
-                      {formatDate(img.uploadedAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <p className="admin-panel__label">Current PDF</p>
+              <p className="admin-panel__filename">{pdf.filename}</p>
+              <p className="admin-panel__date">{formatDate(pdf.uploadedAt)}</p>
               <div className="admin-panel__actions-row">
                 <Link to="/" className="admin-panel__view-link">
-                  View Photos →
+                  View PDF →
                 </Link>
                 <Button
                   variant="outline"
@@ -253,13 +227,13 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
                   disabled={isClearing}
                   className="admin-panel__clear-btn"
                 >
-                  {isClearing ? "Clearing…" : "Clear Photos"}
+                  {isClearing ? "Clearing…" : "Clear PDF"}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="admin-panel__current">
-              <p className="admin-panel__no-pdf">No photos uploaded yet.</p>
+              <p className="admin-panel__no-pdf">No PDF uploaded yet.</p>
             </div>
           )}
 
@@ -269,23 +243,22 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
           {/* Upload section */}
           <div className="admin-panel__upload">
             <p className="admin-panel__label">
-              {photoCount > 0 ? "Replace Photos" : "Upload Photos"}
+              {hasPdf ? "Replace PDF" : "Upload PDF"}
             </p>
 
             <div className="admin-panel__field">
-              <Label htmlFor="image-files">Choose image files</Label>
+              <Label htmlFor="pdf-file">Choose a PDF file</Label>
               <Input
-                id="image-files"
+                id="pdf-file"
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
-                multiple
+                accept=".pdf"
                 onChange={handleFileChange}
                 disabled={isUploading}
               />
-              {selectedFiles.length > 0 && (
+              {selectedFile && (
                 <p className="admin-panel__progress-text">
-                  {selectedFiles.length} {selectedFiles.length === 1 ? "file" : "files"} selected
+                  {selectedFile.name}
                 </p>
               )}
             </div>
@@ -293,7 +266,10 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
             {/* Progress bar */}
             {isUploading && (
               <div className="admin-panel__progress">
-                <Progress value={uploadProgress} className="admin-panel__progress-bar" />
+                <Progress
+                  value={uploadProgress}
+                  className="admin-panel__progress-bar"
+                />
                 <p className="admin-panel__progress-text">
                   Uploading… {Math.round(uploadProgress)}%
                 </p>
@@ -304,9 +280,9 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
             {uploadSuccess && (
               <div className="admin-panel__success">
                 <p className="admin-panel__success-text">
-                  Photos uploaded successfully.{" "}
+                  PDF uploaded successfully.{" "}
                   <Link to="/" className="admin-panel__view-link">
-                    View Photos →
+                    View PDF →
                   </Link>
                 </p>
               </div>
@@ -314,10 +290,10 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
 
             <Button
               onClick={handleUpload}
-              disabled={selectedFiles.length === 0 || isUploading}
+              disabled={!selectedFile || isUploading}
               className="admin-panel__upload-btn"
             >
-              {isUploading ? "Uploading…" : "Upload Photos"}
+              {isUploading ? "Uploading…" : "Upload PDF"}
             </Button>
           </div>
         </CardContent>

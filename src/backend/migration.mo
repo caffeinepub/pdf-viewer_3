@@ -3,34 +3,29 @@ import Time "mo:core/Time";
 import Storage "blob-storage/Storage";
 
 module {
-  type OldPdfReference = {
-    blob : Storage.ExternalBlob;
-    filename : Text;
-    uploadedAt : Time.Time;
-  };
-
   type OldActor = {
-    currentPdf : ?OldPdfReference;
-  };
-
-  type NewImage = {
-    blob : Storage.ExternalBlob;
-    filename : Text;
-    uploadedAt : Time.Time;
+    images : List.List<{
+      blob : Storage.ExternalBlob;
+      filename : Text;
+      uploadedAt : Time.Time;
+    }>;
   };
 
   type NewActor = {
-    images : List.List<NewImage>;
+    currentPdf : ?{
+      blob : Storage.ExternalBlob;
+      filename : Text;
+      uploadedAt : Time.Time;
+    };
   };
 
   public func run(old : OldActor) : NewActor {
-    let images = List.empty<NewImage>();
-    switch (old.currentPdf) {
-      case (?pdf) {
-        images.add(pdf);
-      };
-      case (null) {};
+    let imagesArray = old.images.toArray();
+    let currentPdf = if (imagesArray.size() > 0) {
+      ?imagesArray[0];
+    } else {
+      null;
     };
-    { images };
+    { currentPdf };
   };
 };

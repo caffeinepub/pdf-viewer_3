@@ -14,14 +14,14 @@ export class ExternalBlob {
     static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
     withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
 }
-export interface Image {
+export type Time = bigint;
+export interface Pdf {
     blob: ExternalBlob;
     filename: string;
     uploadedAt: Time;
 }
-export type Time = bigint;
 export interface backendInterface {
-    clearImages(): Promise<void>;
-    getImages(): Promise<Array<Image>>;
-    setImages(blobList: Array<ExternalBlob>, filenameList: Array<string>): Promise<void>;
+    clearPdf(): Promise<void>;
+    getPdf(): Promise<Pdf | null>;
+    setPdf(blob: ExternalBlob, filename: string): Promise<void>;
 }
