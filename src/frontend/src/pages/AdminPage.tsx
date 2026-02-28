@@ -1,37 +1,31 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { ImageIcon, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../backend";
-import type { Pdf } from "../backend";
 import { useActor } from "../hooks/useActor";
 
-// ────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────
 
 const ADMIN_PASSWORD = "admin123";
 
-function formatDate(time: bigint): string {
-  // ICP Time is nanoseconds since Unix epoch
-  const ms = Number(time / 1_000_000n);
-  return new Date(ms).toLocaleString();
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
+
+interface QueuedFile {
+  id: string;
+  file: File;
+  progress: number; // 0–100
+  done: boolean;
 }
 
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Password Gate
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 
 interface PasswordGateProps {
   onSuccess: () => void;
@@ -53,47 +47,48 @@ function PasswordGate({ onSuccess }: PasswordGateProps) {
 
   return (
     <div className="admin-gate">
-      <Card className="admin-gate__card">
-        <CardHeader>
-          <CardTitle>Admin Access</CardTitle>
-          <CardDescription>
-            Enter the admin password to continue.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="admin-gate__form">
-            <div className="admin-gate__field">
-              <Label htmlFor="admin-password">Password</Label>
-              <Input
-                id="admin-password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError(false);
-                }}
-                placeholder="Enter password"
-                autoFocus
-              />
-              {error && (
-                <p className="admin-gate__error">
-                  Incorrect password. Try again.
-                </p>
-              )}
-            </div>
-            <Button type="submit" className="admin-gate__submit">
-              Login
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="admin-gate__card">
+        <div className="admin-gate__logo">
+          Gallery<span className="admin-gate__logo-dot">.</span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="admin-gate__form">
+          <div className="admin-gate__field">
+            <label htmlFor="admin-password" className="admin-gate__label">
+              Admin Password
+            </label>
+            <input
+              id="admin-password"
+              type="password"
+              className={`admin-gate__input${error ? " admin-gate__input--error" : ""}`}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(false);
+              }}
+              placeholder="Enter password"
+              autoComplete="current-password"
+            />
+            {error && (
+              <p className="admin-gate__error">
+                Incorrect password. Try again.
+              </p>
+            )}
+          </div>
+          <button type="submit" className="admin-gate__submit">
+            Enter
+          </button>
+        </form>
+
+        <p className="admin-gate__hint">admin panel · image gallery</p>
+      </div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Admin Panel
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -103,196 +98,312 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
   const { actor, isFetching: actorFetching } = useActor();
   const queryClient = useQueryClient();
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: pdf, isLoading } = useQuery<Pdf | null>({
-    queryKey: ["pdf"],
+  const { data: images = [], isLoading } = useQuery<
+    Array<{ filename: string; uploadedAt: bigint }>
+  >({
+    queryKey: ["images"],
     queryFn: async () => {
-      if (!actor) return null;
-      return actor.getPdf();
+      if (!actor) return [];
+      return actor.getAllImages();
     },
     enabled: !!actor && !actorFetching,
   });
 
+  const addFilesToQueue = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!arr.length) return;
+    setQueue((prev) => [
+      ...prev,
+      ...arr.map((file) => ({
+        id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+        file,
+        progress: 0,
+        done: false,
+      })),
+    ]);
+  }, []);
+
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0] ?? null;
-      setSelectedFile(file);
-      setUploadSuccess(false);
-      setUploadProgress(0);
+      if (e.target.files) addFilesToQueue(e.target.files);
+      // Reset so same files can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [],
+    [addFilesToQueue],
   );
 
-  const handleUpload = async () => {
-    if (!actor || !selectedFile) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadSuccess(false);
-
-    try {
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
-        (pct: number) => {
-          setUploadProgress(Math.round(pct));
-        },
-      );
-
-      await actor.setPdf(blob, selectedFile.name);
-      setUploadProgress(100);
-      setUploadSuccess(true);
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
-      toast.success("PDF uploaded successfully.");
-    } catch (err) {
-      console.error("Upload error:", err);
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Upload failed: ${message}`);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
   };
 
-  const handleClear = async () => {
+  const handleDragLeave = () => setIsDragOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files) addFilesToQueue(e.dataTransfer.files);
+  };
+
+  const handleUpload = async () => {
+    if (!actor || queue.length === 0) return;
+
+    setIsUploading(true);
+
+    let allOk = true;
+    const pendingItems = queue.filter((q) => !q.done);
+
+    for (const item of pendingItems) {
+      const itemId = item.id;
+      try {
+        const arrayBuffer = await item.file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+
+        const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
+          (pct: number) => {
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === itemId ? { ...q, progress: Math.round(pct) } : q,
+              ),
+            );
+          },
+        );
+
+        await actor.addImage(blob, item.file.name);
+
+        setQueue((prev) =>
+          prev.map((q) =>
+            q.id === itemId ? { ...q, progress: 100, done: true } : q,
+          ),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Failed to upload "${item.file.name}": ${msg}`);
+        allOk = false;
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["images"] });
+
+    if (allOk) {
+      toast.success(
+        pendingItems.length === 1
+          ? "Image uploaded successfully."
+          : `${pendingItems.length} images uploaded.`,
+      );
+    }
+
+    // Clear done items after a brief moment
+    setTimeout(() => {
+      setQueue((prev) => prev.filter((q) => !q.done));
+    }, 1200);
+
+    setIsUploading(false);
+  };
+
+  const handleClearAll = async () => {
     if (!actor) return;
+    if (!confirm("Remove all uploaded images? This cannot be undone.")) return;
     setIsClearing(true);
     try {
-      await actor.clearPdf();
-      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
-      toast.success("PDF cleared.");
+      await actor.clearAllImages();
+      await queryClient.invalidateQueries({ queryKey: ["images"] });
+      toast.success("All images cleared.");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to clear PDF.");
+      toast.error("Failed to clear images.");
     } finally {
       setIsClearing(false);
     }
   };
 
-  const hasPdf = !!pdf;
+  const imageCount = isLoading || actorFetching ? null : images.length;
+  const pendingCount = queue.filter((q) => !q.done).length;
 
   return (
-    <div className="admin-panel">
-      <Card className="admin-panel__card">
-        <CardHeader className="admin-panel__header">
-          <CardTitle>PDF Admin</CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
+    <div className="admin-page">
+      <div className="admin-card">
+        {/* Header */}
+        <div className="admin-card__header">
+          <div>
+            <h1 className="admin-card__title">Gallery Admin</h1>
+            <p className="admin-card__subtitle">Upload and manage images</p>
+          </div>
+          <button
+            type="button"
+            className="admin-card__logout-btn"
             onClick={onLogout}
-            className="admin-panel__logout"
           >
             Logout
-          </Button>
-        </CardHeader>
+          </button>
+        </div>
 
-        <CardContent className="admin-panel__content">
-          {/* Current PDF info */}
-          {isLoading || actorFetching ? (
-            <div className="admin-panel__current">
-              <p className="admin-panel__loading-text">Loading PDF info…</p>
-            </div>
-          ) : hasPdf ? (
-            <div className="admin-panel__current">
-              <p className="admin-panel__label">Current PDF</p>
-              <p className="admin-panel__filename">{pdf.filename}</p>
-              <p className="admin-panel__date">{formatDate(pdf.uploadedAt)}</p>
-              <div className="admin-panel__actions-row">
-                <Link to="/" className="admin-panel__view-link">
-                  View PDF →
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClear}
-                  disabled={isClearing}
-                  className="admin-panel__clear-btn"
-                >
-                  {isClearing ? "Clearing…" : "Clear PDF"}
-                </Button>
+        <div className="admin-card__body">
+          {/* Stats */}
+          <div className="admin-stats">
+            <div>
+              <div className="admin-stats__count">
+                {imageCount === null ? "—" : imageCount}
+              </div>
+              <div className="admin-stats__label">
+                {imageCount === 1 ? "Image" : "Images"}
               </div>
             </div>
-          ) : (
-            <div className="admin-panel__current">
-              <p className="admin-panel__no-pdf">No PDF uploaded yet.</p>
-            </div>
-          )}
 
-          {/* Divider */}
-          <div className="admin-panel__divider" />
+            <div className="admin-stats__actions">
+              {imageCount !== null && imageCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  disabled={isClearing}
+                  title="Clear all images"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    background: "oklch(0.62 0.22 25 / 0.12)",
+                    border: "1px solid oklch(0.62 0.22 25 / 0.3)",
+                    borderRadius: "0.375rem",
+                    padding: "0.375rem 0.75rem",
+                    fontSize: "0.75rem",
+                    fontFamily: "Sora, sans-serif",
+                    fontWeight: 500,
+                    color: "oklch(0.7 0.18 25)",
+                    cursor: isClearing ? "not-allowed" : "pointer",
+                    opacity: isClearing ? 0.5 : 1,
+                    transition: "background 0.2s ease",
+                  }}
+                >
+                  {isClearing ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={12} />
+                  )}
+                  Clear all
+                </button>
+              )}
 
-          {/* Upload section */}
-          <div className="admin-panel__upload">
-            <p className="admin-panel__label">
-              {hasPdf ? "Replace PDF" : "Upload PDF"}
-            </p>
-
-            <div className="admin-panel__field">
-              <Label htmlFor="pdf-file">Choose a PDF file</Label>
-              <Input
-                id="pdf-file"
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleFileChange}
-                disabled={isUploading}
-              />
-              {selectedFile && (
-                <p className="admin-panel__progress-text">
-                  {selectedFile.name}
-                </p>
+              {imageCount !== null && imageCount > 0 && (
+                <Link
+                  to="/"
+                  className="admin-gallery-link"
+                  style={{ padding: "0.375rem 0.75rem", fontSize: "0.75rem" }}
+                >
+                  View →
+                </Link>
               )}
             </div>
-
-            {/* Progress bar */}
-            {isUploading && (
-              <div className="admin-panel__progress">
-                <Progress
-                  value={uploadProgress}
-                  className="admin-panel__progress-bar"
-                />
-                <p className="admin-panel__progress-text">
-                  Uploading… {Math.round(uploadProgress)}%
-                </p>
-              </div>
-            )}
-
-            {/* Success message */}
-            {uploadSuccess && (
-              <div className="admin-panel__success">
-                <p className="admin-panel__success-text">
-                  PDF uploaded successfully.{" "}
-                  <Link to="/" className="admin-panel__view-link">
-                    View PDF →
-                  </Link>
-                </p>
-              </div>
-            )}
-
-            <Button
-              onClick={handleUpload}
-              disabled={!selectedFile || isUploading}
-              className="admin-panel__upload-btn"
-            >
-              {isUploading ? "Uploading…" : "Upload PDF"}
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="admin-divider" />
+
+          {/* Upload Section */}
+          <div>
+            <p className="admin-section-label">Upload Images</p>
+
+            {/* Drop zone — label wraps hidden file input for accessibility */}
+            <label
+              htmlFor="image-upload"
+              className={`admin-dropzone${isDragOver ? " admin-dropzone--active" : ""}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                id="image-upload"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileChange}
+                disabled={isUploading}
+                style={{ display: "none" }}
+              />
+              <ImageIcon size={24} className="admin-dropzone__icon" />
+              <p className="admin-dropzone__label">
+                Drop images here or click to browse
+              </p>
+              <p className="admin-dropzone__sub">
+                JPG, PNG, WebP, GIF · multiple allowed
+              </p>
+            </label>
+
+            {/* File queue */}
+            {queue.length > 0 && (
+              <ul className="admin-file-queue" style={{ marginTop: "0.75rem" }}>
+                {queue.map((item) => (
+                  <li key={item.id} className="admin-file-item">
+                    <span className="admin-file-item__name">
+                      {item.file.name}
+                    </span>
+                    {item.done ? (
+                      <span className="admin-file-item__done">✓ Uploaded</span>
+                    ) : isUploading ? (
+                      <div className="admin-file-item__progress-row">
+                        <div className="admin-file-item__bar-track">
+                          <div
+                            className="admin-file-item__bar-fill"
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                        <span className="admin-file-item__pct">
+                          {item.progress}%
+                        </span>
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Upload button */}
+          <button
+            type="button"
+            className="admin-upload-btn"
+            onClick={handleUpload}
+            disabled={pendingCount === 0 || isUploading}
+          >
+            {isUploading ? (
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <Loader2 size={14} className="animate-spin" />
+                Uploading…
+              </span>
+            ) : pendingCount > 0 ? (
+              `Upload ${pendingCount} Image${pendingCount !== 1 ? "s" : ""}`
+            ) : (
+              "Upload Images"
+            )}
+          </button>
+
+          {/* Gallery link */}
+          {(imageCount ?? 0) > 0 && (
+            <Link to="/" className="admin-gallery-link">
+              View Gallery →
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// Admin Page (root)
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AdminPage root
+// ─────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);

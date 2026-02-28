@@ -1,31 +1,30 @@
 import List "mo:core/List";
-import Time "mo:core/Time";
 import Storage "blob-storage/Storage";
+import Time "mo:core/Time";
 
 module {
-  type OldActor = {
-    images : List.List<{
-      blob : Storage.ExternalBlob;
-      filename : Text;
-      uploadedAt : Time.Time;
-    }>;
+  type Pdf = {
+    blob : Storage.ExternalBlob;
+    filename : Text;
+    uploadedAt : Time.Time;
   };
 
-  type NewActor = {
-    currentPdf : ?{
-      blob : Storage.ExternalBlob;
-      filename : Text;
-      uploadedAt : Time.Time;
-    };
+  type OldComponent = {
+    currentPdf : ?Pdf;
   };
 
-  public func run(old : OldActor) : NewActor {
-    let imagesArray = old.images.toArray();
-    let currentPdf = if (imagesArray.size() > 0) {
-      ?imagesArray[0];
-    } else {
-      null;
-    };
-    { currentPdf };
+  type Image = {
+    blob : Storage.ExternalBlob;
+    filename : Text;
+    uploadedAt : Time.Time;
+  };
+
+  type NewComponent = {
+    images : List.List<Image>;
+  };
+
+  // Migration function to convert old state with ?Pdf to new state with empty image list
+  public func run(_old : OldComponent) : NewComponent {
+    { images = List.empty<Image>() };
   };
 };

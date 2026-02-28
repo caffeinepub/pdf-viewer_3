@@ -1,34 +1,48 @@
 import Time "mo:core/Time";
+import List "mo:core/List";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
+import Migration "migration";
 
-
-
-actor {
+(with migration = Migration.run)
+actor component {
   include MixinStorage();
 
-  type Pdf = {
+  type Image = {
     blob : Storage.ExternalBlob;
     filename : Text;
     uploadedAt : Time.Time;
   };
 
-  var currentPdf : ?Pdf = null;
+  let images = List.empty<Image>();
 
-  public shared ({ caller }) func setPdf(blob : Storage.ExternalBlob, filename : Text) : async () {
-    let pdf : Pdf = {
+  public shared ({ caller }) func addImage(blob : Storage.ExternalBlob, filename : Text) : async () {
+    let image : Image = {
       blob;
       filename;
       uploadedAt = Time.now();
     };
-    currentPdf := ?pdf;
+    images.add(image);
   };
 
-  public query ({ caller }) func getPdf() : async ?Pdf {
-    currentPdf;
+  public query ({ caller }) func getAllImages() : async [Image] {
+    images.toArray();
   };
 
-  public shared ({ caller }) func clearPdf() : async () {
-    currentPdf := null;
+  public shared ({ caller }) func removeImage(index : Nat) : async () {
+    if (index >= images.size()) { return };
+    let imagesArray = images.toArray();
+    images.clear();
+    var i = 0;
+    while (i < imagesArray.size()) {
+      if (i != index) {
+        images.add(imagesArray[i]);
+      };
+      i += 1;
+    };
+  };
+
+  public shared ({ caller }) func clearAllImages() : async () {
+    images.clear();
   };
 };

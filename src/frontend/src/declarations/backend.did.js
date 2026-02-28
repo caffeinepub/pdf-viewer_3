@@ -21,7 +21,7 @@ export const _CaffeineStorageRefillResult = IDL.Record({
 });
 export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const Time = IDL.Int;
-export const Pdf = IDL.Record({
+export const Image = IDL.Record({
   'blob' : ExternalBlob,
   'filename' : IDL.Text,
   'uploadedAt' : Time,
@@ -54,9 +54,10 @@ export const idlService = IDL.Service({
       [],
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-  'clearPdf' : IDL.Func([], [], []),
-  'getPdf' : IDL.Func([], [IDL.Opt(Pdf)], ['query']),
-  'setPdf' : IDL.Func([ExternalBlob, IDL.Text], [], []),
+  'addImage' : IDL.Func([ExternalBlob, IDL.Text], [], []),
+  'clearAllImages' : IDL.Func([], [], []),
+  'getAllImages' : IDL.Func([], [IDL.Vec(Image)], ['query']),
+  'removeImage' : IDL.Func([IDL.Nat], [], []),
 });
 
 export const idlInitArgs = [];
@@ -75,7 +76,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const ExternalBlob = IDL.Vec(IDL.Nat8);
   const Time = IDL.Int;
-  const Pdf = IDL.Record({
+  const Image = IDL.Record({
     'blob' : ExternalBlob,
     'filename' : IDL.Text,
     'uploadedAt' : Time,
@@ -108,9 +109,10 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    'clearPdf' : IDL.Func([], [], []),
-    'getPdf' : IDL.Func([], [IDL.Opt(Pdf)], ['query']),
-    'setPdf' : IDL.Func([ExternalBlob, IDL.Text], [], []),
+    'addImage' : IDL.Func([ExternalBlob, IDL.Text], [], []),
+    'clearAllImages' : IDL.Func([], [], []),
+    'getAllImages' : IDL.Func([], [IDL.Vec(Image)], ['query']),
+    'removeImage' : IDL.Func([IDL.Nat], [], []),
   });
 };
 
