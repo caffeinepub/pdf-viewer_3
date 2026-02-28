@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import type { Pdf } from "../backend";
 import { useActor } from "../hooks/useActor";
 
@@ -10,8 +9,6 @@ import { useActor } from "../hooks/useActor";
 
 export default function ViewerPage() {
   const { actor, isFetching: actorFetching } = useActor();
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loadingBytes, setLoadingBytes] = useState(false);
 
   const { data: pdf, isLoading } = useQuery<Pdf | null>({
     queryKey: ["pdf"],
@@ -21,44 +18,6 @@ export default function ViewerPage() {
     },
     enabled: !!actor && !actorFetching,
   });
-
-  // Fetch PDF bytes and create object URL
-  useEffect(() => {
-    if (!pdf) {
-      setObjectUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-    let createdUrl: string | null = null;
-
-    async function loadPdf() {
-      setLoadingBytes(true);
-      try {
-        const bytes = await pdf!.blob.getBytes();
-        const blob = new Blob([bytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        if (!cancelled) {
-          createdUrl = url;
-          setObjectUrl(url);
-        } else {
-          URL.revokeObjectURL(url);
-        }
-      } catch (err) {
-        console.error("Failed to load PDF bytes:", err);
-        if (!cancelled) setObjectUrl(null);
-      } finally {
-        if (!cancelled) setLoadingBytes(false);
-      }
-    }
-
-    loadPdf();
-
-    return () => {
-      cancelled = true;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
-    };
-  }, [pdf]);
 
   // ── States ──────────────────────────────────────────────
 
@@ -81,25 +40,17 @@ export default function ViewerPage() {
     );
   }
 
-  if (loadingBytes) {
-    return (
-      <div className="viewer-loading">
-        <div className="viewer-loading__spinner" />
-      </div>
-    );
-  }
+  const pdfUrl = pdf.blob.getDirectURL();
 
   return (
     <div className="viewer-pdf">
-      {objectUrl && (
-        <embed
-          src={objectUrl}
-          type="application/pdf"
-          width="100%"
-          height="100%"
-          title={pdf.filename}
-        />
-      )}
+      <embed
+        src={pdfUrl}
+        type="application/pdf"
+        width="100%"
+        height="100%"
+        title={pdf.filename}
+      />
     </div>
   );
 }
