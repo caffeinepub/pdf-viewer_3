@@ -136,9 +136,10 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
     setUploadProgress(0);
     setUploadSuccess(false);
 
-    const objectUrl = URL.createObjectURL(selectedFile);
     try {
-      const blob = ExternalBlob.fromURL(objectUrl).withUploadProgress(
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
         (pct: number) => {
           setUploadProgress(Math.round(pct));
         },
@@ -156,7 +157,6 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Upload failed: ${message}`);
     } finally {
-      URL.revokeObjectURL(objectUrl);
       setIsUploading(false);
     }
   };
