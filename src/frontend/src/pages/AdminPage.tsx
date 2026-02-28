@@ -29,18 +29,6 @@ function formatDate(time: bigint): string {
   return new Date(ms).toLocaleString();
 }
 
-function readFileAsBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const buffer = e.target?.result as ArrayBuffer;
-      resolve(new Uint8Array(buffer) as Uint8Array<ArrayBuffer>);
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
 // ────────────────────────────────────────────────────────────
 // Password Gate
 // ────────────────────────────────────────────────────────────
@@ -148,10 +136,9 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
     setUploadProgress(0);
     setUploadSuccess(false);
 
+    const objectUrl = URL.createObjectURL(selectedFile);
     try {
-      const bytes = await readFileAsBytes(selectedFile);
-
-      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
+      const blob = ExternalBlob.fromURL(objectUrl).withUploadProgress(
         (pct: number) => {
           setUploadProgress(Math.round(pct));
         },
@@ -169,6 +156,7 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Upload failed: ${message}`);
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setIsUploading(false);
     }
   };
