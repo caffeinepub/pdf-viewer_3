@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import type { Pdf } from "../backend";
 import { useActor } from "../hooks/useActor";
 
@@ -19,9 +20,49 @@ export default function ViewerPage() {
     enabled: !!actor && !actorFetching,
   });
 
+  // ── Blob URL built from raw bytes so Chrome receives the
+  //    correct application/pdf content-type and displays inline ──
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [bytesLoading, setBytesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pdf) {
+      setBlobUrl(null);
+      return;
+    }
+
+    let revoked = false;
+    let objectUrl: string | null = null;
+
+    setBytesLoading(true);
+
+    pdf.blob
+      .getBytes()
+      .then((bytes) => {
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(
+          new Blob([bytes], { type: "application/pdf" }),
+        );
+        setBlobUrl(objectUrl);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch PDF bytes:", err);
+      })
+      .finally(() => {
+        if (!revoked) setBytesLoading(false);
+      });
+
+    return () => {
+      revoked = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [pdf]);
+
   // ── States ──────────────────────────────────────────────
 
-  if (isLoading || actorFetching) {
+  if (isLoading || actorFetching || bytesLoading) {
     return (
       <div className="viewer-loading">
         <div className="viewer-loading__spinner" />
@@ -40,12 +81,18 @@ export default function ViewerPage() {
     );
   }
 
-  const pdfUrl = pdf.blob.getDirectURL();
+  if (!blobUrl) {
+    return (
+      <div className="viewer-loading">
+        <div className="viewer-loading__spinner" />
+      </div>
+    );
+  }
 
   return (
     <div className="viewer-pdf">
       <embed
-        src={pdfUrl}
+        src={blobUrl}
         type="application/pdf"
         width="100%"
         height="100%"
