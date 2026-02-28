@@ -46,8 +46,11 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   'addImage' : ActorMethod<[ExternalBlob, string], undefined>,
   'clearAllImages' : ActorMethod<[], undefined>,
+  'clearPdf' : ActorMethod<[], undefined>,
   'getAllImages' : ActorMethod<[], Array<Image>>,
+  'getPdf' : ActorMethod<[], [] | [ExternalBlob]>,
   'removeImage' : ActorMethod<[bigint], undefined>,
+  'setPdf' : ActorMethod<[ExternalBlob], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

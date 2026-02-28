@@ -281,6 +281,82 @@
   to { transform: rotate(360deg); }
 }
 
+/* ─── Viewer Tabs ────────────────────────────────────────── */
+
+.viewer-tabs {
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  background: oklch(0.12 0 0 / 0.8);
+  border: 1px solid oklch(0.24 0.01 90 / 0.5);
+  border-radius: 2rem;
+  padding: 0.25rem;
+  z-index: 30;
+  backdrop-filter: blur(12px);
+}
+
+.viewer-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 2rem;
+  border: none;
+  background: transparent;
+  font-family: "Sora", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: oklch(0.52 0.01 90);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.viewer-tab-btn:hover {
+  color: oklch(0.82 0.02 90);
+}
+
+.viewer-tab-btn--active {
+  background: oklch(0.72 0.16 65);
+  color: oklch(0.1 0 0);
+}
+
+.viewer-tab-btn--active:hover {
+  background: oklch(0.76 0.16 65);
+  color: oklch(0.1 0 0);
+}
+
+/* Tab empty states (inside the viewer root) */
+.viewer-tab-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 10;
+}
+
+.viewer-tab-empty__icon {
+  color: oklch(0.38 0.02 65);
+  margin-bottom: 0.5rem;
+}
+
+/* PDF embed fills full screen */
+.viewer-pdf-embed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  z-index: 5;
+}
+
 /* ─── Admin Page ─────────────────────────────────────────── */
 
 .admin-page {
@@ -560,6 +636,132 @@
   height: 1px;
   background: oklch(0.18 0.01 90);
   margin: 0;
+}
+
+/* ─── Admin PDF Section ──────────────────────────────────── */
+
+.admin-pdf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-pdf-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  font-family: "Sora", sans-serif;
+  font-size: 0.8125rem;
+}
+
+.admin-pdf-status--loading {
+  background: oklch(0.1 0 0);
+  border: 1px solid oklch(0.2 0.01 90);
+  color: oklch(0.45 0.01 90);
+  gap: 0.5rem;
+}
+
+.admin-pdf-status--exists {
+  background: oklch(0.72 0.16 65 / 0.06);
+  border: 1px solid oklch(0.72 0.16 65 / 0.25);
+}
+
+.admin-pdf-status--empty {
+  background: oklch(0.1 0 0);
+  border: 1px solid oklch(0.2 0.01 90);
+  color: oklch(0.42 0.01 90);
+  gap: 0.5rem;
+}
+
+.admin-pdf-status__info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: oklch(0.78 0.1 65);
+}
+
+.admin-pdf-status__icon {
+  color: oklch(0.72 0.16 65);
+  flex-shrink: 0;
+}
+
+.admin-pdf-status__icon--dim {
+  color: oklch(0.4 0.02 65);
+  flex-shrink: 0;
+}
+
+.admin-pdf-status__text {
+  font-weight: 500;
+}
+
+.admin-pdf-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.625rem;
+  background: oklch(0.62 0.22 25 / 0.1);
+  border: 1px solid oklch(0.62 0.22 25 / 0.3);
+  border-radius: 0.375rem;
+  font-family: "Sora", sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: oklch(0.7 0.18 25);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.admin-pdf-clear-btn:hover {
+  background: oklch(0.62 0.22 25 / 0.2);
+}
+
+.admin-pdf-clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-pdf-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-pdf-label {
+  cursor: pointer;
+}
+
+.admin-pdf-label__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  background: oklch(0.16 0.01 90 / 0.6);
+  border: 1px dashed oklch(0.32 0.01 90);
+  border-radius: 0.4rem;
+  font-family: "Sora", sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: oklch(0.65 0.02 90);
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  user-select: none;
+}
+
+.admin-pdf-label:hover .admin-pdf-label__btn {
+  border-color: oklch(0.72 0.16 65 / 0.5);
+  color: oklch(0.78 0.04 65);
+  background: oklch(0.72 0.16 65 / 0.06);
+}
+
+.admin-pdf-selected-name {
+  font-family: "Sora", sans-serif;
+  font-size: 0.8125rem;
+  color: oklch(0.72 0.02 90);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 16rem;
 }
 
 /* ─── Admin Gate ─────────────────────────────────────────── */

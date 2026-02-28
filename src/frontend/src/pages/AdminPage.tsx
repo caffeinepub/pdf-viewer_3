@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { FileText, ImageIcon, Loader2, Trash2, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExternalBlob } from "../backend";
@@ -82,6 +82,192 @@ function PasswordGate({ onSuccess }: PasswordGateProps) {
 
         <p className="admin-gate__hint">admin panel · image gallery</p>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PDF Upload Section
+// ─────────────────────────────────────────────────────────────
+
+interface PdfSectionProps {
+  actor: ReturnType<typeof useActor>["actor"];
+}
+
+function PdfSection({ actor }: PdfSectionProps) {
+  const queryClient = useQueryClient();
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [isPdfUploading, setIsPdfUploading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const { data: currentPdf, isLoading: isPdfLoading } = useQuery<
+    import("../backend").ExternalBlob | null
+  >({
+    queryKey: ["pdf"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getPdf();
+    },
+    enabled: !!actor,
+  });
+
+  const hasPdf = currentPdf != null;
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPdfFile(file);
+      setPdfProgress(0);
+    }
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+  };
+
+  const handlePdfUpload = async () => {
+    if (!actor || !pdfFile) return;
+    setIsPdfUploading(true);
+    setPdfProgress(0);
+    try {
+      const arrayBuffer = await pdfFile.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const blob = ExternalBlob.fromBytes(bytes).withUploadProgress(
+        (pct: number) => {
+          setPdfProgress(Math.round(pct));
+        },
+      );
+      await actor.setPdf(blob);
+      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
+      toast.success("PDF uploaded successfully.");
+      setPdfFile(null);
+      setPdfProgress(0);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Upload failed: ${msg}`);
+    } finally {
+      setIsPdfUploading(false);
+    }
+  };
+
+  const handleClearPdf = async () => {
+    if (!actor) return;
+    if (!confirm("Remove the uploaded PDF? This cannot be undone.")) return;
+    setIsClearing(true);
+    try {
+      await actor.clearPdf();
+      await queryClient.invalidateQueries({ queryKey: ["pdf"] });
+      toast.success("PDF removed.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove PDF.");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  return (
+    <div className="admin-pdf-section">
+      <div className="admin-divider" />
+
+      <div>
+        <p className="admin-section-label">Upload PDF</p>
+
+        {/* Current PDF status */}
+        {isPdfLoading ? (
+          <div className="admin-pdf-status admin-pdf-status--loading">
+            <Loader2 size={14} className="animate-spin" />
+            <span>Checking PDF status…</span>
+          </div>
+        ) : hasPdf ? (
+          <div className="admin-pdf-status admin-pdf-status--exists">
+            <div className="admin-pdf-status__info">
+              <FileText size={16} className="admin-pdf-status__icon" />
+              <span className="admin-pdf-status__text">PDF uploaded</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearPdf}
+              disabled={isClearing}
+              className="admin-pdf-clear-btn"
+              title="Remove PDF"
+            >
+              {isClearing ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <X size={12} />
+              )}
+              Clear PDF
+            </button>
+          </div>
+        ) : (
+          <div className="admin-pdf-status admin-pdf-status--empty">
+            <FileText size={14} className="admin-pdf-status__icon--dim" />
+            <span>No PDF uploaded yet</span>
+          </div>
+        )}
+
+        {/* File selector */}
+        <div className="admin-pdf-picker" style={{ marginTop: "0.875rem" }}>
+          <label htmlFor="pdf-upload" className="admin-pdf-label">
+            <input
+              id="pdf-upload"
+              ref={pdfInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handlePdfFileChange}
+              disabled={isPdfUploading}
+              style={{ display: "none" }}
+            />
+            <span className="admin-pdf-label__btn">
+              {pdfFile ? "Change PDF" : "Select PDF"}
+            </span>
+          </label>
+
+          {pdfFile && (
+            <span className="admin-pdf-selected-name">{pdfFile.name}</span>
+          )}
+        </div>
+
+        {/* Progress bar while uploading */}
+        {isPdfUploading && (
+          <div
+            className="admin-file-item__progress-row"
+            style={{ marginTop: "0.5rem" }}
+          >
+            <div className="admin-file-item__bar-track">
+              <div
+                className="admin-file-item__bar-fill"
+                style={{ width: `${pdfProgress}%` }}
+              />
+            </div>
+            <span className="admin-file-item__pct">{pdfProgress}%</span>
+          </div>
+        )}
+      </div>
+
+      {/* Upload button */}
+      <button
+        type="button"
+        className="admin-upload-btn"
+        onClick={handlePdfUpload}
+        disabled={!pdfFile || isPdfUploading}
+      >
+        {isPdfUploading ? (
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <Loader2 size={14} className="animate-spin" />
+            Uploading PDF…
+          </span>
+        ) : (
+          "Upload PDF"
+        )}
+      </button>
     </div>
   );
 }
@@ -233,7 +419,7 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
         <div className="admin-card__header">
           <div>
             <h1 className="admin-card__title">Gallery Admin</h1>
-            <p className="admin-card__subtitle">Upload and manage images</p>
+            <p className="admin-card__subtitle">Upload and manage content</p>
           </div>
           <button
             type="button"
@@ -303,7 +489,7 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
 
           <div className="admin-divider" />
 
-          {/* Upload Section */}
+          {/* Images Upload Section */}
           <div>
             <p className="admin-section-label">Upload Images</p>
 
@@ -395,6 +581,9 @@ function AdminPanel({ onLogout }: AdminPanelProps) {
               View Gallery →
             </Link>
           )}
+
+          {/* PDF Section */}
+          {!!actor && <PdfSection actor={actor} />}
         </div>
       </div>
     </div>

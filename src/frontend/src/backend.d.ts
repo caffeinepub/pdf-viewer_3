@@ -23,6 +23,9 @@ export type Time = bigint;
 export interface backendInterface {
     addImage(blob: ExternalBlob, filename: string): Promise<void>;
     clearAllImages(): Promise<void>;
+    clearPdf(): Promise<void>;
     getAllImages(): Promise<Array<Image>>;
+    getPdf(): Promise<ExternalBlob | null>;
     removeImage(index: bigint): Promise<void>;
+    setPdf(blob: ExternalBlob): Promise<void>;
 }

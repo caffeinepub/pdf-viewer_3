@@ -115,8 +115,11 @@ export interface backendInterface {
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     addImage(blob: ExternalBlob, filename: string): Promise<void>;
     clearAllImages(): Promise<void>;
+    clearPdf(): Promise<void>;
     getAllImages(): Promise<Array<Image>>;
+    getPdf(): Promise<ExternalBlob | null>;
     removeImage(index: bigint): Promise<void>;
+    setPdf(blob: ExternalBlob): Promise<void>;
 }
 import type { ExternalBlob as _ExternalBlob, Image as _Image, Time as _Time, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -233,6 +236,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async clearPdf(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.clearPdf();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.clearPdf();
+            return result;
+        }
+    }
     async getAllImages(): Promise<Array<Image>> {
         if (this.processError) {
             try {
@@ -245,6 +262,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getAllImages();
             return from_candid_vec_n9(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPdf(): Promise<ExternalBlob | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPdf();
+                return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPdf();
+            return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
         }
     }
     async removeImage(arg0: bigint): Promise<void> {
@@ -261,6 +292,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setPdf(arg0: ExternalBlob): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setPdf(await to_candid_ExternalBlob_n8(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setPdf(await to_candid_ExternalBlob_n8(this._uploadFile, this._downloadFile, arg0));
+            return result;
+        }
+    }
 }
 async function from_candid_ExternalBlob_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExternalBlob): Promise<ExternalBlob> {
     return await _downloadFile(value);
@@ -270,6 +315,9 @@ async function from_candid_Image_n10(_uploadFile: (file: ExternalBlob) => Promis
 }
 function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __CaffeineStorageRefillResult): _CaffeineStorageRefillResult {
     return from_candid_record_n5(_uploadFile, _downloadFile, value);
+}
+async function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_ExternalBlob]): Promise<ExternalBlob | null> {
+    return value.length === 0 ? null : await from_candid_ExternalBlob_n12(_uploadFile, _downloadFile, value[0]);
 }
 function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];

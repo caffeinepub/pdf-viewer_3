@@ -1,30 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Images } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { Image } from "../backend";
 import { useActor } from "../hooks/useActor";
 
 // ─────────────────────────────────────────────────────────────
-// ViewerPage
+// Tab type
 // ─────────────────────────────────────────────────────────────
 
-export default function ViewerPage() {
-  const { actor, isFetching: actorFetching } = useActor();
+type ActiveTab = "photos" | "pdf";
+
+// ─────────────────────────────────────────────────────────────
+// Photos Viewer
+// ─────────────────────────────────────────────────────────────
+
+interface PhotosViewerProps {
+  images: Image[];
+}
+
+function PhotosViewer({ images }: PhotosViewerProps) {
+  const total = images.length;
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const { data: images = [], isLoading } = useQuery<Image[]>({
-    queryKey: ["images"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.getAllImages();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-
-  const total = images.length;
-
-  // Reset index when image list length changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on total change
   useEffect(() => {
     setCurrentIndex(0);
@@ -49,20 +47,10 @@ export default function ViewerPage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [prev, next, total]);
 
-  // ── Loading ─────────────────────────────────────────────
-  if (isLoading || actorFetching) {
-    return (
-      <div className="viewer-loading">
-        <div className="viewer-loading__spinner" />
-      </div>
-    );
-  }
-
-  // ── Empty ───────────────────────────────────────────────
   if (total === 0) {
     return (
-      <div className="viewer-empty">
-        <h1 className="viewer-empty__title">No images yet</h1>
+      <div className="viewer-tab-empty">
+        <h2 className="viewer-empty__title">No images yet</h2>
         <p className="viewer-empty__sub">
           Upload images from the admin panel to get started.
         </p>
@@ -73,12 +61,11 @@ export default function ViewerPage() {
     );
   }
 
-  // ── Viewer ──────────────────────────────────────────────
   const currentImage = images[currentIndex];
   const src = currentImage.blob.getDirectURL();
 
   return (
-    <div className="viewer-root">
+    <>
       {/* Gradient overlays */}
       <div className="viewer-overlay-top" />
       <div className="viewer-overlay-bottom" />
@@ -87,11 +74,6 @@ export default function ViewerPage() {
       <div className="viewer-counter">
         {currentIndex + 1} / {total}
       </div>
-
-      {/* Admin link */}
-      <Link to="/admin" className="viewer-admin-link">
-        Admin
-      </Link>
 
       {/* Image */}
       <img
@@ -126,6 +108,123 @@ export default function ViewerPage() {
 
       {/* Filename */}
       <div className="viewer-filename">{currentImage.filename}</div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PDF Viewer
+// ─────────────────────────────────────────────────────────────
+
+function PdfViewer() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  const { data: pdf, isLoading } = useQuery<
+    import("../backend").ExternalBlob | null
+  >({
+    queryKey: ["pdf"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getPdf();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+
+  if (isLoading || actorFetching) {
+    return (
+      <div className="viewer-tab-empty">
+        <div className="viewer-loading__spinner" />
+      </div>
+    );
+  }
+
+  if (!pdf) {
+    return (
+      <div className="viewer-tab-empty">
+        <FileText size={40} className="viewer-tab-empty__icon" />
+        <h2 className="viewer-empty__title">No PDF uploaded yet</h2>
+        <p className="viewer-empty__sub">
+          Upload a PDF from the admin panel to display it here.
+        </p>
+        <Link to="/admin" className="viewer-empty__link">
+          Go to Admin
+        </Link>
+      </div>
+    );
+  }
+
+  const pdfUrl = pdf.getDirectURL();
+
+  return (
+    <embed
+      src={pdfUrl}
+      type="application/pdf"
+      className="viewer-pdf-embed"
+      title="PDF Viewer"
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ViewerPage
+// ─────────────────────────────────────────────────────────────
+
+export default function ViewerPage() {
+  const { actor, isFetching: actorFetching } = useActor();
+  const [activeTab, setActiveTab] = useState<ActiveTab>("photos");
+
+  const { data: images = [], isLoading } = useQuery<Image[]>({
+    queryKey: ["images"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllImages();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+
+  // ── Loading ─────────────────────────────────────────────
+  if (isLoading || actorFetching) {
+    return (
+      <div className="viewer-loading">
+        <div className="viewer-loading__spinner" />
+      </div>
+    );
+  }
+
+  // ── Viewer with tabs ──────────────────────────────────────
+  return (
+    <div className="viewer-root">
+      {/* Tab bar */}
+      <div className="viewer-tabs">
+        <button
+          type="button"
+          className={`viewer-tab-btn${activeTab === "photos" ? " viewer-tab-btn--active" : ""}`}
+          onClick={() => setActiveTab("photos")}
+        >
+          <Images size={14} />
+          Photos
+        </button>
+        <button
+          type="button"
+          className={`viewer-tab-btn${activeTab === "pdf" ? " viewer-tab-btn--active" : ""}`}
+          onClick={() => setActiveTab("pdf")}
+        >
+          <FileText size={14} />
+          PDF
+        </button>
+      </div>
+
+      {/* Admin link */}
+      <Link to="/admin" className="viewer-admin-link">
+        Admin
+      </Link>
+
+      {/* Tab content */}
+      {activeTab === "photos" ? (
+        <PhotosViewer images={images} />
+      ) : (
+        <PdfViewer />
+      )}
     </div>
   );
 }

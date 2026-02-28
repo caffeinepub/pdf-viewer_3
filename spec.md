@@ -1,27 +1,36 @@
-# PDF Viewer (Image Gallery)
+# PDF Viewer
 
 ## Current State
-The app is a PDF viewer. The backend stores a single `Pdf` record (blob + filename + uploadedAt). The admin page uploads a single PDF. The viewer displays it via an `<embed>` tag.
+
+The app has:
+- A backend with `addImage`, `getAllImages`, `removeImage`, `clearAllImages` for storing images as `ExternalBlob`
+- An admin page (`/admin`) with password gate (`admin123`), drag-and-drop image upload, queue progress, and clear-all
+- A viewer page (`/`) showing a full-screen slideshow of images with keyboard and arrow navigation
+- blob-storage component integrated
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: store multiple images (each with blob, filename, uploadedAt)
-- Backend: `addImage`, `getImages`, `clearImages`, `removeImage` functions
-- Frontend: Admin page accepts multiple image file uploads (JPG, PNG, GIF, WebP)
-- Frontend: Viewer page shows a full-screen slideshow with left/right arrow navigation and keyboard support
+- Backend: `setPDF(blob, filename)`, `getPDF()`, `clearPDF()` methods to store a single PDF separately from images
+- Admin page: Second upload section for a single PDF (below images section), with upload, status display, and clear button
+- Viewer page: Two-tab interface -- "Photos" tab (existing slideshow) and "PDF" tab (inline PDF viewer using embed/iframe)
 
 ### Modify
-- Backend: Replace single-PDF data model with a list of image records
-- Frontend: AdminPage -- change file input to accept images (multiple), update labels and logic
-- Frontend: ViewerPage -- replace PDF embed with image slideshow
+- Admin page: Add PDF upload section with its own file input (accepts `.pdf` only), upload button, and current PDF status
+- Viewer page: Add tab switcher at the top; Photos tab shows existing slideshow; PDF tab shows the PDF inline
 
 ### Remove
-- Backend: `setPdf`, `getPdf`, `clearPdf` functions
-- Backend: `Pdf` type
-- Frontend: All PDF-specific logic, embed tag, PDF labels
+- Nothing removed
 
 ## Implementation Plan
-1. Regenerate Motoko backend with image list storage (addImage, getImages, clearImages, removeImage)
-2. Update frontend AdminPage: accept multiple images, upload each one, show count of uploaded images
-3. Update frontend ViewerPage: fetch image list, show full-screen slideshow with prev/next navigation and keyboard arrows
+
+1. **Backend**: Add `setPDF`, `getPDF`, `clearPDF` to `main.mo`. Store PDF as `?{ blob: ExternalBlob; filename: Text; uploadedAt: Time }` (optional, single record)
+2. **Frontend - AdminPage**: Add PDF section below images section with:
+   - File input accepting `.pdf` only
+   - Current PDF status (filename + date if uploaded, or "No PDF uploaded")
+   - Upload button
+   - Clear PDF button (if PDF exists)
+3. **Frontend - ViewerPage**: Add tab bar with "Photos" and "PDF" tabs:
+   - Photos tab: existing slideshow behavior unchanged
+   - PDF tab: fetch PDF from backend, render inline using `<embed>` with `application/pdf` type
+   - If no PDF uploaded, show empty state with link to admin

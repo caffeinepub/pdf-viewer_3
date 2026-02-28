@@ -56,8 +56,11 @@ export const idlService = IDL.Service({
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   'addImage' : IDL.Func([ExternalBlob, IDL.Text], [], []),
   'clearAllImages' : IDL.Func([], [], []),
+  'clearPdf' : IDL.Func([], [], []),
   'getAllImages' : IDL.Func([], [IDL.Vec(Image)], ['query']),
+  'getPdf' : IDL.Func([], [IDL.Opt(ExternalBlob)], ['query']),
   'removeImage' : IDL.Func([IDL.Nat], [], []),
+  'setPdf' : IDL.Func([ExternalBlob], [], []),
 });
 
 export const idlInitArgs = [];
@@ -111,8 +114,11 @@ export const idlFactory = ({ IDL }) => {
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     'addImage' : IDL.Func([ExternalBlob, IDL.Text], [], []),
     'clearAllImages' : IDL.Func([], [], []),
+    'clearPdf' : IDL.Func([], [], []),
     'getAllImages' : IDL.Func([], [IDL.Vec(Image)], ['query']),
+    'getPdf' : IDL.Func([], [IDL.Opt(ExternalBlob)], ['query']),
     'removeImage' : IDL.Func([IDL.Nat], [], []),
+    'setPdf' : IDL.Func([ExternalBlob], [], []),
   });
 };
 

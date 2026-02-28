@@ -5,7 +5,7 @@ import MixinStorage "blob-storage/Mixin";
 import Migration "migration";
 
 (with migration = Migration.run)
-actor component {
+actor {
   include MixinStorage();
 
   type Image = {
@@ -15,6 +15,7 @@ actor component {
   };
 
   let images = List.empty<Image>();
+  var pdf : ?Storage.ExternalBlob = null;
 
   public shared ({ caller }) func addImage(blob : Storage.ExternalBlob, filename : Text) : async () {
     let image : Image = {
@@ -44,5 +45,17 @@ actor component {
 
   public shared ({ caller }) func clearAllImages() : async () {
     images.clear();
+  };
+
+  public shared ({ caller }) func setPdf(blob : Storage.ExternalBlob) : async () {
+    pdf := ?blob;
+  };
+
+  public query ({ caller }) func getPdf() : async ?Storage.ExternalBlob {
+    pdf;
+  };
+
+  public shared ({ caller }) func clearPdf() : async () {
+    pdf := null;
   };
 };
