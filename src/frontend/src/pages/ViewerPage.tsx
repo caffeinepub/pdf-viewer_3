@@ -119,13 +119,19 @@ function PhotosViewer({ images }: PhotosViewerProps) {
 function PdfViewer() {
   const { actor, isFetching: actorFetching } = useActor();
 
-  const { data: pdf, isLoading } = useQuery<
-    import("../backend").ExternalBlob | null
-  >({
-    queryKey: ["pdf"],
+  const { data: blobUrl, isLoading } = useQuery<string | null>({
+    queryKey: ["pdf-blob-url"],
     queryFn: async () => {
       if (!actor) return null;
-      return actor.getPdf();
+      const pdf = await actor.getPdf();
+      if (!pdf) return null;
+      // Fetch bytes and create a proper blob URL so Chrome renders inline
+      const directUrl = pdf.getDirectURL();
+      const response = await fetch(directUrl);
+      if (!response.ok) throw new Error("Failed to fetch PDF");
+      const arrayBuffer = await response.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+      return URL.createObjectURL(blob);
     },
     enabled: !!actor && !actorFetching,
   });
@@ -138,7 +144,7 @@ function PdfViewer() {
     );
   }
 
-  if (!pdf) {
+  if (!blobUrl) {
     return (
       <div className="viewer-tab-empty">
         <FileText size={40} className="viewer-tab-empty__icon" />
@@ -153,14 +159,12 @@ function PdfViewer() {
     );
   }
 
-  const pdfUrl = pdf.getDirectURL();
-
   return (
-    <embed
-      src={pdfUrl}
-      type="application/pdf"
+    <iframe
+      src={blobUrl}
       className="viewer-pdf-embed"
       title="PDF Viewer"
+      style={{ border: "none" }}
     />
   );
 }
